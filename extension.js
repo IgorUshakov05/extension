@@ -1,15 +1,17 @@
 const vscode = require("vscode");
+const path = require("path");
+let activePanel = null; // Сохраняем WebView
+let messageQueue = []; // Очередь сообщений для отправки после повторного открытия WebView
 
 async function getResponse(text) {
   try {
     let response = await fetch("https://ai.webhunt.ru/ask", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         text:
-          text + ": стек технологий: PySide6, SQLAlchemy, mysql, ответь на русском",
+          text +
+          ": стек технологий: PySide6, SQLAlchemy, mysql, ответь на русском",
       }),
     });
     let answer = await response.json();
@@ -23,27 +25,48 @@ async function getResponse(text) {
 function activate(context) {
   console.log('Your extension "chatbot" is now active!');
 
-  const disposable = vscode.commands.registerCommand(
-    "igorsexy.helloWorld",
-    function () {
-      const panel = vscode.window.createWebviewPanel(
-        "chatbot",
-        "Igor sexy boy?",
-        vscode.ViewColumn.One,
-        { enableScripts: true }
-      );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("igorsexy.helloWorld", () => {
+      if (activePanel) {
+        activePanel.reveal(vscode.ViewColumn.One); // Если WebView уже открыт, просто показываем
+      } else {
+        activePanel = vscode.window.createWebviewPanel(
+          "chatbot",
+          "main.py",
+          vscode.ViewColumn.One,
+          { enableScripts: true }
+        );
+        const iconPath = vscode.Uri.file(
+          path.join(context.extensionPath, "media", "image.png")
+        );
+        activePanel.iconPath = iconPath;
+        activePanel.webview.html = getWebviewContent();
 
-      panel.webview.html = getWebviewContent();
+        activePanel.onDidDispose(() => {
+          activePanel = null; // Очистка ссылки при закрытии
+        });
 
-      panel.webview.onDidReceiveMessage(async (message) => {
-        let text = message.text;
-        let response = await getResponse(text);
-        panel.webview.postMessage({ text: response.text });
-      });
-    }
+        // Отправляем сохранённые сообщения при открытии WebView
+        if (messageQueue.length > 0) {
+          messageQueue.forEach((msg) => activePanel.webview.postMessage(msg));
+          messageQueue = []; // Очистка очереди после отправки
+        }
+
+        // Слушаем сообщения от WebView
+        activePanel.webview.onDidReceiveMessage(async (message) => {
+          let response = await getResponse(message.text);
+
+          // Если WebView открыт — отправляем ответ
+          if (activePanel) {
+            activePanel.webview.postMessage({ text: response.text });
+          } else {
+            // Если WebView закрыт — сохраняем ответ в очередь
+            messageQueue.push({ text: response.text });
+          }
+        });
+      }
+    })
   );
-
-  context.subscriptions.push(disposable);
 }
 
 function deactivate() {}
@@ -56,7 +79,6 @@ function getWebviewContent() {
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Chatbot</title>
-      <link rel="icon" type="image/png" href="https://th.bing.com/th/id/OIP.mcDM32dcz8M_EliALCY1JAHaEK?rs=1&pid=ImgDetMain">
       <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
       <style>
         body {
@@ -88,18 +110,6 @@ function getWebviewContent() {
         .bot {
           background-color: #333;
         }
-        pre {
-          background-color: #2d2d2d;
-          padding: 10px;
-          border-radius: 5px;
-          overflow-x: auto;
-          cursor: pointer;
-        }
-        code {
-          display: block;
-          white-space: pre-wrap;
-          word-wrap: break-word;
-        }
         #input-container {
           display: flex;
           margin-top: 10px;
@@ -122,7 +132,7 @@ function getWebviewContent() {
           border-radius: 5px;
         }
         #send:hover {
-          background-color:rgb(12, 12, 12);
+          background-color: rgb(25, 25, 25);
         }
       </style>
     </head>
@@ -140,19 +150,16 @@ function getWebviewContent() {
 
         let state = vscode.getState() || { history: [] };
 
-        // Отображаем все сообщения из истории
         function renderMessages() {
           messages.innerHTML = "";
           state.history.forEach(({ text, sender }) => addMessage(text, sender, false));
         }
 
-        // Добавление сообщений
         function addMessage(text, sender, save = true) {
           const msgDiv = document.createElement("div");
           msgDiv.className = "message " + sender;
           if (sender === "bot") {
-            msgDiv.innerHTML = marked.parse(text); // Рендер Markdown
-            addCodeCopyListeners(msgDiv); // Добавляем слушателей для копирования кода
+            msgDiv.innerHTML = marked.parse(text);
           } else {
             msgDiv.textContent = text;
           }
@@ -164,20 +171,6 @@ function getWebviewContent() {
           }
         }
 
-        // Добавление слушателя для копирования кода
-        function addCodeCopyListeners(msgDiv) {
-          const codeBlocks = msgDiv.querySelectorAll('pre code');
-          codeBlocks.forEach(block => {
-            block.parentElement.addEventListener('click', () => {
-              const text = block.textContent;
-              navigator.clipboard.writeText(text).then(() => {
-                alert('Код скопирован в буфер обмена!');
-              });
-            });
-          });
-        }
-
-        // Отправка сообщения
         function sendMessage() {
           const text = input.value.trim();
           if (!text) return;
@@ -192,13 +185,11 @@ function getWebviewContent() {
 
         sendBtn.addEventListener("click", sendMessage);
 
-        // Получаем ответ от сервера
         window.addEventListener("message", function (event) {
           const message = event.data;
           addMessage(message.text, "bot");
         });
 
-        // Рендерим сохраненные сообщения
         renderMessages();
       </script>
     </body>
