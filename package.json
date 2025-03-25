@@ -2,12 +2,21 @@
   "name": "igorsexy",
   "displayName": "igorsexy",
   "description": "igor best lover",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "icon": "icon.png",
   "engines": {
     "vscode": "^1.98.0"
   },
-  "publisher": "webhuntru", 
+  "menus": {
+    "editor/context": [
+      {
+        "command": "extension.igorOnHelp",
+        "when": "editorTextFocus",
+        "group": "navigation"
+      }
+    ]
+  },
+  "publisher": "webhuntru",
   "repository": {
     "type": "git",
     "url": "https://github.com/igorushakov05/extension.git"
@@ -24,6 +33,10 @@
       {
         "command": "igorsexy.helloWorld",
         "title": "Igorsexy"
+      },
+      {
+        "command": "extension.igorOnHelp",
+        "title": "Игорь на помощь"
       }
     ]
   },
