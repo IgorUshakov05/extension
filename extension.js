@@ -9,7 +9,7 @@ async function getResponse(text) {
       },
       body: JSON.stringify({
         text:
-          text + ": стек технологий: PySide6, SQLAlchemy, psycopg2, PostgreSQL, ответь на русском",
+          text + ": стек технологий: PySide6, SQLAlchemy, mysql, ответь на русском",
       }),
     });
     let answer = await response.json();
@@ -56,6 +56,7 @@ function getWebviewContent() {
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Chatbot</title>
+      <link rel="icon" type="image/png" href="https://th.bing.com/th/id/OIP.mcDM32dcz8M_EliALCY1JAHaEK?rs=1&pid=ImgDetMain">
       <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
       <style>
         body {
@@ -80,7 +81,7 @@ function getWebviewContent() {
           border-radius: 5px;
         }
         .user {
-          background-color: #007acc;
+          background-color: rgb(12, 12, 12);
           color: #fff;
           text-align: right;
         }
@@ -114,14 +115,14 @@ function getWebviewContent() {
         #send {
           margin-left: 10px;
           padding: 10px;
-          background-color: #007acc;
+          background-color: rgb(12, 12, 12);
           color: #fff;
           border: none;
           cursor: pointer;
           border-radius: 5px;
         }
         #send:hover {
-          background-color: #005f9e;
+          background-color:rgb(12, 12, 12);
         }
       </style>
     </head>
@@ -137,7 +138,16 @@ function getWebviewContent() {
         const messages = document.getElementById("messages");
         const sendBtn = document.getElementById("send");
 
-        function addMessage(text, sender) {
+        let state = vscode.getState() || { history: [] };
+
+        // Отображаем все сообщения из истории
+        function renderMessages() {
+          messages.innerHTML = "";
+          state.history.forEach(({ text, sender }) => addMessage(text, sender, false));
+        }
+
+        // Добавление сообщений
+        function addMessage(text, sender, save = true) {
           const msgDiv = document.createElement("div");
           msgDiv.className = "message " + sender;
           if (sender === "bot") {
@@ -148,10 +158,14 @@ function getWebviewContent() {
           }
           messages.appendChild(msgDiv);
           messages.scrollTop = messages.scrollHeight;
+          if (save) {
+            state.history.push({ text, sender });
+            vscode.setState(state);
+          }
         }
 
+        // Добавление слушателя для копирования кода
         function addCodeCopyListeners(msgDiv) {
-          // Находим все блоки кода и добавляем обработчик
           const codeBlocks = msgDiv.querySelectorAll('pre code');
           codeBlocks.forEach(block => {
             block.parentElement.addEventListener('click', () => {
@@ -163,6 +177,7 @@ function getWebviewContent() {
           });
         }
 
+        // Отправка сообщения
         function sendMessage() {
           const text = input.value.trim();
           if (!text) return;
@@ -177,10 +192,14 @@ function getWebviewContent() {
 
         sendBtn.addEventListener("click", sendMessage);
 
+        // Получаем ответ от сервера
         window.addEventListener("message", function (event) {
           const message = event.data;
           addMessage(message.text, "bot");
         });
+
+        // Рендерим сохраненные сообщения
+        renderMessages();
       </script>
     </body>
     </html>
