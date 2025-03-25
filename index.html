@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chatbot</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+      }
+      #messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px;
+        background-color: #f9f9f9;
+      }
+      #input {
+        padding: 10px;
+        background-color: #eee;
+        border: none;
+      }
+      #input:focus {
+        outline: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="messages"></div>
+    <input type="text" id="input" placeholder="Type 'hello'..." />
+    <script>
+      const vscode = acquireVsCodeApi();
+      const input = document.getElementById("input");
+      const messages = document.getElementById("messages");
+
+      input.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+          const text = input.value.trim();
+          if (text) {
+            messages.innerHTML +=
+              "<div><strong>You:</strong> " + text + "</div>";
+            vscode.postMessage({ text: text });
+            input.value = "";
+          }
+        }
+      });
+
+      window.addEventListener("message", function (event) {
+        const message = event.data;
+        messages.innerHTML +=
+          "<div><strong>Bot:</strong> " + message.text + "</div>";
+        messages.scrollTop = messages.scrollHeight;
+      });
+    </script>
+  </body>
+</html>
