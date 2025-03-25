@@ -5,7 +5,7 @@ let messageQueue = []; // Очередь сообщений для отправ�
 
 async function getResponse(text) {
   try {
-    let response = await fetch("https://ai.webhunt.ru/ask", {
+    let hello = await fetch("https://ai.webhunt.ru/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -14,7 +14,7 @@ async function getResponse(text) {
           ": стек технологий: PySide6, SQLAlchemy, mysql, ответь на русском",
       }),
     });
-    let answer = await response.json();
+    let answer = await hello.json();
     return { success: true, text: answer.response };
   } catch (e) {
     console.error("Ошибка запроса:", e);
@@ -81,58 +81,77 @@ function getWebviewContent() {
       <title>Chatbot</title>
       <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
       <style>
+        :root {
+          --background: var(--vscode-editor-background);
+          --foreground: var(--vscode-editor-foreground);
+          --input-background: var(--vscode-input-background);
+          --input-foreground: var(--vscode-input-foreground);
+          --border: var(--vscode-input-border);
+          --button-bg: var(--vscode-button-background);
+          --button-fg: var(--vscode-button-foreground);
+        }
+
         body {
           font-family: Consolas, "Courier New", monospace;
-          background-color: #1e1e1e;
-          color: #d4d4d4;
+          background-color: var(--background);
+          color: var(--foreground);
           display: flex;
           flex-direction: column;
           height: 100vh;
           padding: 10px;
         }
+
         #messages {
           flex: 1;
           overflow-y: auto;
           padding: 10px;
-          background-color: #252526;
+          background-color: var(--input-background);
           border-radius: 5px;
+          border: 1px solid var(--border);
         }
+
         .message {
           margin-bottom: 10px;
           padding: 10px;
           border-radius: 5px;
         }
+
         .user {
-          background-color: rgb(12, 12, 12);
-          color: #fff;
+          background-color: rgba(255, 255, 255, 0.1);
+          color: var(--foreground);
           text-align: right;
         }
+
         .bot {
-          background-color: #333;
+          background-color: rgba(255, 255, 255, 0.2);
         }
+
         #input-container {
           display: flex;
           margin-top: 10px;
         }
+
         #input {
           flex: 1;
           padding: 10px;
-          background-color: #252526;
-          color: #d4d4d4;
-          border: 1px solid #3c3c3c;
+          background-color: var(--input-background);
+          color: var(--input-foreground);
+          border: 1px solid var(--border);
           border-radius: 5px;
         }
+
         #send {
           margin-left: 10px;
           padding: 10px;
-          background-color: rgb(12, 12, 12);
-          color: #fff;
+          background-color: var(--button-bg);
+          color: var(--button-fg);
           border: none;
           cursor: pointer;
           border-radius: 5px;
         }
+
         #send:hover {
-          background-color: rgb(25, 25, 25);
+          filter: brightness(1.1);
         }
       </style>
     </head>
@@ -196,5 +215,6 @@ function getWebviewContent() {
     </html>
   `;
 }
+
 
 module.exports = { activate, deactivate };
