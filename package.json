@@ -2,7 +2,7 @@
   "name": "igorsexy",
   "displayName": "igorsexy",
   "description": "igor best lover",
-  "version": "1.0.2",
+  "version": "2.1.2",
   "icon": "icon.png",
   "engines": {
     "vscode": "^1.98.0"
@@ -11,6 +11,11 @@
     "editor/context": [
       {
         "command": "extension.igorOnHelp",
+        "when": "editorTextFocus",
+        "group": "navigation"
+      },
+      {
+        "command": "extension.write",
         "when": "editorTextFocus",
         "group": "navigation"
       }
@@ -37,6 +42,52 @@
       {
         "command": "extension.igorOnHelp",
         "title": "Игорь на помощь"
+      },
+      {
+        "command": "extension.write",
+        "title": "Запустить .py"
+      },
+      {
+        "command": "extension.startWriting",
+        "title": "Start Writing"
+      },
+      {
+        "command": "extension.stopWriting",
+        "title": "Stop Writing"
+      },
+      {
+        "command": "extension.resetWriting",
+        "title": "Reset Writing"
+      },
+      {
+        "command": "extension.template",
+        "title": "Игорь дай шаблон"
+      },
+      {
+        "command": "extension.startReplase",
+        "title": "Замена"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "extension.startWriting",
+        "key": "ctrl+alt+enter",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "extension.stopWriting",
+        "key": "ctrl+alt+backspace",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "extension.resetWriting",
+        "key": "ctrl+alt+shift+r",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "extension.startReplase",
+        "key": "ctrl+alt+shift+i",
+        "when": "editorTextFocus"
       }
     ]
   },

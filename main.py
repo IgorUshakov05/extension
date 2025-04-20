@@ -1,132 +1,257 @@
 import sys
-from typing import List, Tuple
-
-from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout,
-                               QTableWidget, QTableWidgetItem, QPushButton,
-                               QLineEdit, QHBoxLayout, QMessageBox)
-from PySide6.QtCore import Qt
-
-from sqlalchemy import create_engine, Column, Integer, String
-from sqlalchemy.orm import sessionmaker, declarative_base
+from PySide6.QtWidgets import (QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget,
+                                 QLabel, QLineEdit, QTableWidget, QTableWidgetItem, QComboBox,
+                                 QMessageBox, QHBoxLayout, QDialog, QFormLayout, QDialogButtonBox, QDateEdit)
+from PySide6.QtGui import QIcon
+from PySide6.QtCore import Qt, QDate
+from sqlalchemy import create_engine, Column, Integer, String, Date, select, distinct
+from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
+from datetime import datetime
 
-# Database configuration
-DATABASE_URL = "postgresql://username:password@host:port/database_name"  # Replace with your actual credentials
-engine = create_engine(DATABASE_URL)
+# Настройки подключения к БД
+DB_URI = 'postgresql+psycopg2://postgres:21730Igor@localhost:5432/database'
+engine = create_engine(DB_URI)
+Session = sessionmaker(bind=engine)
 Base = declarative_base()
 
-# Define the data model (table)
-class Item(Base):
-    __tablename__ = "items"
+class Employee(Base):
+    __tablename__ = 'employees'
 
     id = Column(Integer, primary_key=True)
-    name = Column(String)
-    description = Column(String)
+    full_name = Column(String)
+    passport_series = Column(String)
+    passport_number = Column(String)
+    address = Column(String)
+    company = Column(String)
+    position = Column(String)
+    start_date = Column(Date)
 
-    def __repr__(self):
-        return f"<Item(name='{self.name}', description='{self.description}')>"
+Base.metadata.create_all(engine)
 
-Base.metadata.create_all(engine)  # Create tables if they don't exist
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-
-class MainWindow(QWidget):
-    def __init__(self):
+class EmployeeDialog(QDialog):
+    def __init__(self, data=None):
         super().__init__()
+        self.setWindowTitle("Форма сотрудника")
+        self.setWindowIcon(QIcon('image.png'))
 
-        self.setWindowTitle("Database Viewer")
+        layout = QFormLayout()
+        self.full_name = QLineEdit()
+        self.passport_series = QLineEdit()
+        self.passport_number = QLineEdit()
+        self.address = QLineEdit()
+        self.company = QLineEdit()
+        self.position = QLineEdit()
+        self.start_date = QDateEdit()
+        self.start_date.setCalendarPopup(True)
+        self.start_date.setDate(QDate.currentDate())
 
-        # UI elements
-        self.name_input = QLineEdit()
-        self.description_input = QLineEdit()
-        self.add_button = QPushButton("Add Item")
+        if data:
+            self.full_name.setText(data.full_name)
+            self.passport_series.setText(data.passport_series)
+            self.passport_number.setText(data.passport_number)
+            self.address.setText(data.address)
+            self.company.setText(data.company)
+            self.position.setText(data.position)
+            self.start_date.setDate(QDate(data.start_date.year, data.start_date.month, data.start_date.day))
+
+        layout.addRow("ФИО:", self.full_name)
+        layout.addRow("Серия паспорта:", self.passport_series)
+        layout.addRow("Номер паспорта:", self.passport_number)
+        layout.addRow("Адрес:", self.address)
+        layout.addRow("Компания:", self.company)
+        layout.addRow("Должность:", self.position)
+        layout.addRow("Дата начала:", self.start_date)
+
+        self.buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.buttons.accepted.connect(self.accept)
+        self.buttons.rejected.connect(self.reject)
+        layout.addRow(self.buttons)
+
+        self.setLayout(layout)
+
+    def get_data(self):
+        return Employee(
+            full_name=self.full_name.text(),
+            passport_series=self.passport_series.text(),
+            passport_number=self.passport_number.text(),
+            address=self.address.text(),
+            company=self.company.text(),
+            position=self.position.text(),
+            start_date=self.start_date.date().toPython()
+        )
+
+class EmployeeWindow(QWidget):
+    def __init__(self, role):
+        super().__init__()
+        self.role = role
+        self.setWindowTitle("Сотрудники фирмы")
+        self.setWindowIcon(QIcon(':/icons/logo.png'))
+
+        self.layout = QVBoxLayout()
+
+        search_layout = QHBoxLayout()
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Поиск по имени...")
+        self.search_input.textChanged.connect(self.load_data)
+        self.filter_company = QComboBox()
+        self.filter_company.currentTextChanged.connect(self.load_data)
+        search_layout.addWidget(self.search_input)
+        search_layout.addWidget(self.filter_company)
+        self.layout.addLayout(search_layout)
+
         self.table = QTableWidget()
+        self.table.setColumnCount(7)
+        self.table.setHorizontalHeaderLabels([
+            "ФИО", "Серия паспорта", "Номер паспорта", "Адрес", "Компания", "Должность", "Дата начала"
+        ])
+        self.layout.addWidget(self.table)
 
-        # Layout
-        input_layout = QHBoxLayout()
-        input_layout.addWidget(self.name_input)
-        input_layout.addWidget(self.description_input)
-        input_layout.addWidget(self.add_button)
+        if self.role in ('Администратор', 'Менеджер'):
+            self.add_btn = QPushButton("Добавить сотрудника")
+            self.add_btn.clicked.connect(self.add_employee)
+            self.layout.addWidget(self.add_btn)
 
-        main_layout = QVBoxLayout()
-        main_layout.addLayout(input_layout)
-        main_layout.addWidget(self.table)
+        if self.role == 'Администратор':
+            self.edit_btn = QPushButton("Редактировать выбранного сотрудника")
+            self.edit_btn.clicked.connect(self.edit_employee)
+            self.layout.addWidget(self.edit_btn)
 
-        self.setLayout(main_layout)
+            self.delete_btn = QPushButton("Удалить выбранного сотрудника")
+            self.delete_btn.clicked.connect(self.delete_employee)
+            self.layout.addWidget(self.delete_btn)
 
-        # Connections
-        self.add_button.clicked.connect(self.add_item)
-
-        # Initial load of data
+        self.setLayout(self.layout)
+        self.load_companies()
         self.load_data()
 
-    def load_data(self):
-        """Loads data from the database and displays it in the table."""
+    def load_companies(self):
+        session = Session()
+        self.filter_company.clear()
+        self.filter_company.addItem("Все компании")
         try:
-            db = SessionLocal()
-            items = db.query(Item).all()
-            db.close()  # Important to close the session!
+            companies = session.query(distinct(Employee.company)).order_by(Employee.company).all()
+            for company, in companies:
+                self.filter_company.addItem(company)
+        finally:
+            session.close()
 
-            self.table.setRowCount(0)  # Clear existing data
-            self.table.setColumnCount(3)
-            self.table.setHorizontalHeaderLabels(["ID", "Name", "Description"])
+    def load_data(self):
+        session = Session()
+        try:
+            query = session.query(Employee)
+            name_filter = self.search_input.text().strip().lower()
+            if name_filter:
+                query = query.filter(Employee.full_name.ilike(f"%{name_filter}%"))
 
-            for row, item in enumerate(items):
-                self.table.insertRow(row)
-                self.table.setItem(row, 0, QTableWidgetItem(str(item.id)))
-                self.table.setItem(row, 1, QTableWidgetItem(item.name))
-                self.table.setItem(row, 2, QTableWidgetItem(item.description))
+            company = self.filter_company.currentText()
+            if company != "Все компании":
+                query = query.filter(Employee.company == company)
 
-        except SQLAlchemyError as e:
-            self.show_error_message(f"Error loading data from database: {e}")
+            rows = query.all()
+            self.table.setRowCount(len(rows))
+            for row_idx, emp in enumerate(rows):
+                values = [emp.full_name, emp.passport_series, emp.passport_number, emp.address, emp.company, emp.position, emp.start_date.strftime("%Y-%m-%d")]
+                for col_idx, value in enumerate(values):
+                    self.table.setItem(row_idx, col_idx, QTableWidgetItem(str(value)))
+        finally:
+            session.close()
 
-    def add_item(self):
-        """Adds a new item to the database and refreshes the table."""
-        name = self.name_input.text()
-        description = self.description_input.text()
+    def add_employee(self):
+        dialog = EmployeeDialog()
+        if dialog.exec() == QDialog.Accepted:
+            emp = dialog.get_data()
+            session = Session()
+            try:
+                session.add(emp)
+                session.commit()
+                self.load_data()
+            finally:
+                session.close()
 
-        if not name or not description:
-            self.show_error_message("Name and Description cannot be empty.")
+    def edit_employee(self):
+        selected = self.table.currentRow()
+        if selected == -1:
+            QMessageBox.warning(self, "Редактирование", "Выберите сотрудника для редактирования.")
             return
 
+        session = Session()
         try:
-            db = SessionLocal()
-            new_item = Item(name=name, description=description)
-            db.add(new_item)
-            db.commit()
-            db.refresh(new_item)  # Refresh to get the generated ID
-            db.close()
+            full_name = self.table.item(selected, 0).text()
+            passport_series = self.table.item(selected, 1).text()
+            passport_number = self.table.item(selected, 2).text()
+            emp = session.query(Employee).filter_by(
+                full_name=full_name, passport_series=passport_series, passport_number=passport_number
+            ).first()
+            if not emp:
+                QMessageBox.warning(self, "Ошибка", "Сотрудник не найден.")
+                return
 
-            self.name_input.clear()
-            self.description_input.clear()
-            self.load_data()  # Refresh the table
+            dialog = EmployeeDialog(emp)
+            if dialog.exec() == QDialog.Accepted:
+                new_emp = dialog.get_data()
+                emp.full_name = new_emp.full_name
+                emp.passport_series = new_emp.passport_series
+                emp.passport_number = new_emp.passport_number
+                emp.address = new_emp.address
+                emp.company = new_emp.company
+                emp.position = new_emp.position
+                emp.start_date = new_emp.start_date
+                session.commit()
+                self.load_data()
+        finally:
+            session.close()
 
-            self.show_success_message("Item added successfully!")
+    def delete_employee(self):
+        selected = self.table.currentRow()
+        if selected == -1:
+            QMessageBox.warning(self, "Удаление", "Выберите сотрудника для удаления.")
+            return
 
-        except SQLAlchemyError as e:
-            db.rollback()  # Rollback changes in case of error
-            db.close()
-            self.show_error_message(f"Error adding item to database: {e}")
+        full_name = self.table.item(selected, 0).text()
+        passport_series = self.table.item(selected, 1).text()
+        passport_number = self.table.item(selected, 2).text()
+        reply = QMessageBox.question(self, "Подтверждение", f"Удалить сотрудника {full_name}?", QMessageBox.Yes | QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            session = Session()
+            try:
+                emp = session.query(Employee).filter_by(
+                    full_name=full_name, passport_series=passport_series, passport_number=passport_number
+                ).first()
+                if emp:
+                    session.delete(emp)
+                    session.commit()
+                    self.load_data()
+            finally:
+                session.close()
 
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Главное меню")
+        self.setWindowIcon(QIcon(':/icons/logo.png'))
 
-    def show_error_message(self, message: str):
-        """Displays an error message dialog."""
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Critical)
-        msg.setText("Error")
-        msg.setInformativeText(message)
-        msg.setWindowTitle("Error")
-        msg.exec()
+        self.layout = QVBoxLayout()
+        self.label = QLabel("Выберите роль:")
+        self.layout.addWidget(self.label)
 
-    def show_success_message(self, message: str):
-        """Displays a success message dialog."""
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Information)
-        msg.setText("Success")
-        msg.setInformativeText(message)
-        msg.setWindowTitle("Success")
-        msg.exec()
+        self.admin_btn = QPushButton("Администратор")
+        self.manager_btn = QPushButton("Менеджер")
 
+        self.admin_btn.clicked.connect(lambda: self.open_role_window('Администратор'))
+        self.manager_btn.clicked.connect(lambda: self.open_role_window('Менеджер'))
+
+        self.layout.addWidget(self.admin_btn)
+        self.layout.addWidget(self.manager_btn)
+
+        container = QWidget()
+        container.setLayout(self.layout)
+        self.setCentralWidget(container)
+
+    def open_role_window(self, role):
+        self.employee_window = EmployeeWindow(role)
+        self.employee_window.show()
+        self.hide()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
